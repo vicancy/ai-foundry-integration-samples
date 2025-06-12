@@ -1,0 +1,1114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Chat - Azure Web PubSub</title>
+    <script
+      async
+      src="https://ga.jspm.io/npm:es-module-shims@1.6.3/dist/es-module-shims.js"
+    ></script>
+    <script type="importmap">
+      {
+        "imports": {
+          "@azure/web-pubsub-client": "https://esm.sh/@azure/web-pubsub-client@1.0.2",
+          "@azure/core-auth": "https://esm.sh/@azure/core-auth",
+          "@azure/core-rest-pipeline": "https://esm.sh/@azure/core-rest-pipeline",
+          "@azure/core-util": "https://esm.sh/@azure/core-util",
+          "@azure/logger": "https://esm.sh/@azure/logger"
+        }
+      }
+    </script>
+    <style>
+      :root {
+        --body-bg: #f0f2f5;
+        --chat-bg: #ffffff;
+        --user-msg-bg: #0078d4;
+        --bot-msg-bg: #f5f7f9;
+        --text-primary: #1f2937;
+        --text-secondary: #6b7280;
+        --border-color: #e5e7eb;
+        --primary-color: #0078d4;
+        --primary-hover: #0056a3;
+        --header-bg: linear-gradient(135deg, #0078d4, #0056a3);
+        --footer-bg: #f8fafc;
+        --input-bg: #ffffff;
+        --shadow-color: rgba(0, 0, 0, 0.08);
+        --ui-shadow: 0 4px 12px var(--shadow-color);
+        --status-success: #10b981;
+        --status-error: #ef4444;
+        --message-radius: 18px;
+        --container-max-width: 900px;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      }
+      body {
+        background-color: var(--body-bg);
+        color: var(--text-primary);
+        line-height: 1.6;
+        padding: 0;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        font-size: 16px;
+        height: 100vh;
+        padding: 20px;
+      }
+      .app-container {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 40px);
+        overflow: hidden;
+        max-width: var(--container-max-width);
+        margin: 0 auto;
+        width: 100%;
+        box-shadow: var(--ui-shadow);
+        border-radius: 12px;
+      }
+      .chat-container {
+        display: flex;
+        flex: 1;
+        overflow: hidden;
+        position: relative;
+      }
+      .connection-form {
+        background: var(--chat-bg);
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px var(--shadow-color);
+        margin-bottom: 20px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: var(--text-primary);
+      }
+
+      input[type="text"] {
+        width: 100%;
+        padding: 10px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        font-size: 0.95rem;
+        background-color: var(--input-bg);
+        color: var(--text-primary);
+        transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+      }
+
+      input[type="text"]:focus {
+        border-color: var(--primary-color);
+        outline: none;
+        box-shadow: 0 0 0 0.2rem rgba(0, 120, 212, 0.25);
+      } /* Sidebar controls removed to simplify UI */ /* New chat button removed to simplify UI */
+      .main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        width: 100%;
+      }
+      header {
+        background: var(--header-bg);
+        color: white;
+        padding: 16px 24px;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        box-shadow: var(--ui-shadow);
+        position: relative;
+        z-index: 5;
+        border-radius: 10px 10px 0 0;
+      }
+
+      .header-title {
+        text-align: left;
+      }
+
+      header h1 {
+        font-size: 1.3rem;
+        font-weight: 600;
+        margin-bottom: 2px;
+        letter-spacing: -0.5px;
+      }
+
+      header p {
+        opacity: 0.9;
+        font-size: 0.8rem;
+        margin: 0;
+      }
+      .header-left {
+        display: flex;
+        align-items: center;
+      }
+
+      .header-actions {
+        display: flex;
+        align-items: center;
+      } /* Mobile menu button removed */
+      .status {
+        background-color: var(--bot-msg-bg);
+        color: var(--text-primary);
+        padding: 8px 16px;
+        border-radius: 20px;
+        margin-bottom: 15px;
+        font-size: 0.85rem;
+        font-weight: 500;
+        display: none;
+        border-left: none;
+        transition: all 0.3s ease-in-out;
+        box-shadow: 0 1px 3px var(--shadow-color);
+        transform: translateY(-10px);
+        opacity: 0;
+        animation: statusFade 0.3s forwards;
+      }
+
+      @keyframes statusFade {
+        to {
+          transform: translateY(0);
+          opacity: 1;
+        }
+      }
+
+      .status.connected {
+        display: inline-flex;
+        align-items: center;
+        background-color: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: var(--status-success);
+      }
+
+      .status.connected:before {
+        content: "●";
+        display: inline-block;
+        margin-right: 6px;
+        color: var(--status-success);
+      }
+
+      .status.error {
+        display: inline-flex;
+        align-items: center;
+        background-color: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.3);
+        color: var(--status-error);
+      }
+
+      .status.error:before {
+        content: "●";
+        display: inline-block;
+        margin-right: 6px;
+        color: var(--status-error);
+      }
+      .header-status {
+        margin-left: 15px;
+        color: white;
+        background: transparent;
+        box-shadow: none;
+        padding: 5px 12px;
+        border-radius: 100px;
+        font-size: 0.75rem;
+        opacity: 0.85;
+        transition: all 0.3s ease;
+      }
+
+      .header-status.connected {
+        background-color: rgba(16, 185, 129, 0.25);
+        border: 1px solid rgba(16, 185, 129, 0.5);
+        animation: pulse-success 2s infinite;
+      }
+
+      .header-status.error {
+        background-color: rgba(239, 68, 68, 0.25);
+        border: 1px solid rgba(239, 68, 68, 0.5);
+      }
+
+      @keyframes pulse-success {
+        0% {
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4);
+        }
+        70% {
+          box-shadow: 0 0 0 6px rgba(16, 185, 129, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+        }
+      }
+      .chat-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+        background-color: var(--chat-bg);
+        background-image: radial-gradient(
+            circle at 25% 25%,
+            rgba(0, 120, 212, 0.03) 0%,
+            transparent 50%
+          ),
+          radial-gradient(
+            circle at 75% 75%,
+            rgba(0, 120, 212, 0.03) 0%,
+            transparent 50%
+          );
+        position: relative;
+      }
+
+      .chat-background {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        opacity: 0.05;
+        pointer-events: none;
+        background-size: cover;
+        z-index: 0;
+      }
+      .messages {
+        flex: 1;
+        overflow-y: auto;
+        padding: 40px 30px;
+        display: flex;
+        flex-direction: column;
+        z-index: 1;
+        scroll-behavior: smooth;
+        position: relative;
+      }
+
+      .messages::-webkit-scrollbar {
+        width: 6px;
+      }
+
+      .messages::-webkit-scrollbar-track {
+        background: transparent;
+      }
+
+      .messages::-webkit-scrollbar-thumb {
+        background-color: rgba(0, 0, 0, 0.1);
+        border-radius: 3px;
+      }
+
+      .messages::-webkit-scrollbar-thumb:hover {
+        background-color: rgba(0, 0, 0, 0.2);
+      }
+      .message {
+        max-width: 80%;
+        padding: 16px 20px;
+        border-radius: var(--message-radius);
+        margin-bottom: 24px;
+        line-height: 1.6;
+        position: relative;
+        animation: fadeIn 0.3s ease-out;
+        word-break: break-word;
+        box-shadow: 0 1px 4px var(--shadow-color);
+      }
+
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      .message.user-message {
+        background-color: var(--user-msg-bg);
+        color: white;
+        align-self: flex-end;
+        border-bottom-right-radius: 4px;
+      }
+
+      .message.bot-message {
+        background-color: var(--bot-msg-bg);
+        color: var(--text-primary);
+        align-self: flex-start;
+        border-bottom-left-radius: 4px;
+      }
+
+      .message-sender {
+        font-weight: 600;
+        margin-bottom: 6px;
+        font-size: 0.85rem;
+        letter-spacing: 0.2px;
+      }
+
+      .user-message .message-sender {
+        color: rgba(255, 255, 255, 0.9);
+      }
+
+      .bot-message .message-sender {
+        color: var(--primary-color);
+      }
+
+      .message-content {
+        font-size: 1rem;
+        line-height: 1.6;
+      }
+      .input-area {
+        border-top: 1px solid var(--border-color);
+        padding: 20px 28px;
+        background-color: var(--chat-bg);
+        display: flex;
+        align-items: center;
+        box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
+        position: relative;
+        z-index: 3;
+        border-radius: 0 0 10px 10px;
+      }
+
+      .message-input {
+        flex: 1;
+        padding: 14px 20px;
+        border: 1px solid var(--border-color);
+        border-radius: 24px;
+        background-color: var(--input-bg);
+        color: var(--text-primary);
+        font-size: 1rem;
+        resize: none;
+        max-height: 120px;
+        overflow-y: auto;
+        transition: all 0.3s ease;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+      }
+
+      .message-input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 2px 8px rgba(0, 120, 212, 0.15);
+      }
+
+      .message-input:disabled {
+        background-color: #f7f8f9;
+        cursor: not-allowed;
+        opacity: 0.8;
+      }
+
+      .send-button {
+        background-color: var(--primary-color);
+        color: white;
+        border: none;
+        border-radius: 50%;
+        width: 46px;
+        height: 46px;
+        margin-left: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+      }
+
+      .send-button:hover {
+        background-color: var(--primary-hover);
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+      }
+
+      .send-button:active {
+        transform: scale(0.95);
+      }
+
+      .send-button:disabled {
+        background-color: #bdbdbd;
+        cursor: not-allowed;
+        transform: none;
+        box-shadow: none;
+      }
+      footer {
+        margin-top: auto;
+        text-align: center;
+        padding: 12px 0;
+        color: var(--text-secondary);
+        font-size: 0.75rem;
+        background-color: var(--footer-bg);
+        border-top: 1px solid var(--border-color);
+        position: relative;
+        z-index: 5;
+        border-radius: 0 0 10px 10px;
+      }
+      .typing-indicator {
+        display: inline-flex;
+        align-items: center;
+        background-color: var(--bot-msg-bg);
+        color: var(--text-primary);
+        padding: 12px 20px;
+        border-radius: var(--message-radius);
+        align-self: flex-start;
+        margin-bottom: 15px;
+        animation: fadeIn 0.3s ease-out;
+        box-shadow: 0 1px 2px var(--shadow-color);
+        font-size: 0.9rem;
+        display: none;
+        border-bottom-left-radius: 4px;
+      }
+
+      .typing-indicator span {
+        height: 6px;
+        width: 6px;
+        background: var(--primary-color);
+        display: block;
+        border-radius: 50%;
+        opacity: 0.4;
+        margin: 0 1px;
+      }
+
+      .typing-indicator span:nth-child(1) {
+        animation: pulse 1s infinite ease-in-out;
+      }
+      .typing-indicator span:nth-child(2) {
+        animation: pulse 1s infinite ease-in-out 0.2s;
+      }
+      .typing-indicator span:nth-child(3) {
+        animation: pulse 1s infinite ease-in-out 0.4s;
+      }
+
+      @keyframes pulse {
+        0% {
+          transform: scale(1);
+          opacity: 0.4;
+        }
+        50% {
+          transform: scale(1.3);
+          opacity: 1;
+        }
+        100% {
+          transform: scale(1);
+          opacity: 0.4;
+        }
+      }
+
+      /* Animation for streaming messages */
+      .message.streaming .message-content {
+        position: relative;
+      }
+
+      .message.streaming .message-content::after {
+        content: "▌";
+        display: inline-block;
+        vertical-align: middle;
+        animation: blink-cursor 0.8s infinite;
+        margin-left: 2px;
+        color: var(--primary-color);
+      }
+
+      /* Thinking animation */
+      .message.thinking {
+        opacity: 0.7;
+      }
+
+      .message.thinking .message-content {
+        color: var(--text-secondary);
+        font-style: italic;
+      }
+
+      /* Completion animation */
+      .message.completed .message-content {
+        position: relative;
+      }
+
+      @keyframes completion-flash {
+        0% {
+          box-shadow: 0 0 5px rgba(0, 120, 212, 0.5);
+        }
+        100% {
+          box-shadow: none;
+        }
+      }
+
+      .message.just-completed {
+        animation: completion-flash 1s ease-out;
+      }
+
+      @keyframes blink-cursor {
+        0%,
+        100% {
+          opacity: 0;
+        }
+        50% {
+          opacity: 1;
+        }
+      } /* Media Queries for Responsive Design */
+      @media (max-width: 768px) {
+        .app-container {
+          max-width: 100%;
+        }
+
+        header {
+          padding: 10px 15px;
+        }
+
+        header h1 {
+          font-size: 1.1rem;
+        }
+
+        header p {
+          font-size: 0.7rem;
+        }
+
+        .message {
+          max-width: 90%;
+          padding: 12px 15px;
+        }
+
+        .input-area {
+          padding: 12px 15px;
+        }
+
+        .message-input {
+          padding: 12px 15px;
+        }
+
+        .send-button {
+          width: 40px;
+          height: 40px;
+        }
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app-container">
+      <div class="chat-container">
+        <!-- Main Chat Area -->
+        <div class="main">
+          <header>
+            <div class="header-left">
+              <div class="header-title">
+                <h1>AI Agent Chat</h1>
+                <p>Powered by Azure Web PubSub</p>
+              </div>
+            </div>
+            <div class="header-actions">
+              <div id="status" class="status header-status">
+                Connecting to chat service...
+              </div>
+            </div>
+          </header>
+          <div class="chat-area">
+            <div class="chat-background"></div>
+            <div id="messages" class="messages">
+              <!-- Messages will appear here -->
+              <div class="message bot-message">
+                <div class="message-sender">AI Assistant</div>
+                <div class="message-content">Hello! I'm your AI assistant.</div>
+              </div>
+              <div id="typing-indicator" class="typing-indicator">
+                <span></span>
+                <span></span>
+                <span></span>
+              </div>
+            </div>
+
+            <div class="input-area">
+              <input
+                type="text"
+                id="message-input"
+                class="message-input"
+                placeholder="Type a message..."
+                disabled
+              />
+              <button id="send-btn" class="send-button" disabled>➤</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <footer>&copy; 2025 Azure Web PubSub Chat Demo</footer>
+    </div>
+    <script type="module">
+      import { WebPubSubClient } from "@azure/web-pubsub-client"; // DOM Elements
+      const messagesContainer = document.getElementById("messages");
+      const statusElement = document.getElementById("status");
+      const messageInput = document.getElementById("message-input");
+      const sendButton = document.getElementById("send-btn");
+      const typingIndicator = document.getElementById("typing-indicator"); // State variables
+      let client;
+      let connectionId;
+      let roomId = "room-1"; // Room ID for the current chat session
+      let userName = "user-1"; // Default user name
+      let isConnecting = false;
+
+      // Variables for tracking streamed messages
+      let currentMessageId = null;
+      let currentMessageElement = null;
+      let isStreaming = false;
+
+      // Helper function to update status display
+      function updateStatus(message, type = "info") {
+        statusElement.textContent = message;
+        statusElement.className = "status"; // Reset classes
+        if (type === "error") {
+          statusElement.classList.add("error");
+        } else if (type === "connected") {
+          statusElement.classList.add("connected");
+        }
+        statusElement.style.display = "block";
+      } // Function to create a message element
+      function createMessageElement(
+        content,
+        sender,
+        isUserMessage = false,
+        messageId = null
+      ) {
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `message ${
+          isUserMessage ? "user-message" : "bot-message"
+        }`;
+
+        // Store messageId as a data attribute for tracking
+        if (messageId) {
+          messageDiv.dataset.messageId = messageId;
+        }
+
+        const senderDiv = document.createElement("div");
+        senderDiv.className = "message-sender";
+        senderDiv.textContent = sender;
+
+        const contentDiv = document.createElement("div");
+        contentDiv.className = "message-content";
+        contentDiv.textContent = content;
+
+        messageDiv.appendChild(senderDiv);
+        messageDiv.appendChild(contentDiv);
+        return messageDiv;
+      }
+      // Function to add a message to the chat
+      function addMessage(
+        content,
+        sender,
+        isUserMessage = false,
+        messageId = null,
+        isAppend = false
+      ) {
+        // If we have a messageId and it matches the current message, update that message instead of creating a new one
+        if (
+          messageId &&
+          messageId === currentMessageId &&
+          currentMessageElement &&
+          isAppend
+        ) {
+          // Update the existing message content
+          const contentDiv =
+            currentMessageElement.querySelector(".message-content");
+          if (contentDiv) {
+            contentDiv.textContent += content; // Append the new content
+          }
+
+          // Update streaming visual indicator if needed
+          updateStreamingStatus(currentMessageElement, isStreaming);
+        } else {
+          // Create new message element
+          const messageElement = createMessageElement(
+            content,
+            sender,
+            isUserMessage,
+            messageId
+          );
+
+          messagesContainer.appendChild(messageElement);
+
+          // If this is a message with an ID, update our tracking variables
+          if (messageId) {
+            currentMessageId = messageId;
+            currentMessageElement = messageElement;
+
+            // Add streaming visual indicator if this is a streaming message
+            updateStreamingStatus(messageElement, isStreaming);
+          }
+        }
+
+        // Auto-scroll to the bottom on new message
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+      } // Helper function to update the streaming status visuals of a message
+      function updateStreamingStatus(
+        messageElement,
+        isStreaming,
+        isThinking = false,
+        isCompleted = false
+      ) {
+        // Handle streaming status - cursor animation
+        if (isStreaming && !isCompleted) {
+          messageElement.classList.add("streaming");
+        } else {
+          messageElement.classList.remove("streaming");
+        }
+
+        // Handle thinking state
+        if (isThinking) {
+          messageElement.classList.add("thinking");
+        } else {
+          messageElement.classList.remove("thinking");
+        }
+
+        // Handle completion animation
+        if (isCompleted) {
+          messageElement.classList.add("completed");
+          messageElement.classList.add("just-completed");
+
+          // Remove the just-completed class after animation finishes
+          setTimeout(() => {
+            messageElement.classList.remove("just-completed");
+          }, 1000);
+        }
+      }
+
+      // Helper function to compare messageIds safely, handling null/undefined
+      function isSameMessageId(id1, id2) {
+        // If both IDs are null or undefined, they're not matching stream parts
+        if (!id1 || !id2) return false;
+        return id1 === id2;
+      }
+
+      // Function to show typing indicator
+      function showTypingIndicator(show = true) {
+        typingIndicator.style.display = show ? "flex" : "none";
+
+        if (show) {
+          // Auto-scroll to show typing indicator
+          messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+      }
+      // Show initial status message
+      updateStatus("Connecting to chat service...");
+
+      messageInput.addEventListener("keypress", function (event) {
+        if (event.key === "Enter" && !event.shiftKey) {
+          event.preventDefault();
+          sendButton.click();
+        }
+      });
+
+      // Function to connect to WebPubSub
+      async function connectToWebPubSub() {
+        // Prevent multiple connection attempts
+        if (isConnecting) return;
+        isConnecting = true;
+
+        try {
+          updateStatus("Connecting...");
+
+          // If a client already exists, stop it first
+          if (client) {
+            try {
+              await client.stop();
+              console.log("Previous client stopped");
+            } catch (stopErr) {
+              console.error("Error stopping previous client:", stopErr);
+            }
+          }
+          // Generate a unique roomId for this session
+          roomId = `room-1`; //${Date.now()}`;
+          console.log(`Generated roomId: ${roomId}`); // Create a new client with the negotiated URL
+          client = new WebPubSubClient({
+            getClientAccessUrl: async (_) => {
+              const response = await fetch(`/negotiate?roomId=${roomId}`);
+              if (!response.ok) {
+                throw new Error(`Negotiation failed: ${response.statusText}`);
+              }
+              const data = await response.text();
+              return data;
+            },
+          });
+
+          client.on("connected", async (e) => {
+            connectionId = e.connectionId;
+
+            console.log(
+              `Connected with connectionId: ${connectionId}, roomId: ${roomId}`
+            );
+            updateStatus(`Connected`, "connected");
+
+            // Enable messaging interface
+            messageInput.disabled = false;
+            sendButton.disabled = false;
+
+            // Clear previous messages and show welcome message
+            messagesContainer.innerHTML = "";
+            typingIndicator.style.display = "flex";
+
+            // Simulate AI typing
+            setTimeout(() => {
+              typingIndicator.style.display = "none";
+              addMessage(
+                "Hello! I'm your AI assistant. How can I help you today?",
+                "AI Assistant"
+              );
+
+              // Focus on message input
+              messageInput.focus();
+            }, 1200);
+
+            isConnecting = false;
+          });
+
+          client.on("disconnected", (e) => {
+            console.log("Disconnected from the server", e);
+            updateStatus(
+              `Disconnected: ${e.reason || "Connection closed"}`,
+              "error"
+            );
+
+            // Disable messaging interface
+            messageInput.disabled = true;
+            sendButton.disabled = true;
+
+            isConnecting = false;
+          });
+          client.on("group-message", (e) => {
+            const message = e.message;
+            // Check if the message is for our roomId
+            if (message.group !== roomId) {
+              console.log(
+                `Ignoring message for different room: ${message.group}`
+              );
+              return;
+            }
+
+            // Safely access message properties
+            const messageData = message.data;
+            const messageId = messageData.messageId;
+            const messageDeltaId = messageData.messageDeltaId;
+            const streaming = !!messageData.streaming;
+            const streamingEnd = !!messageData.streamingEnd;
+            const messageContent = messageData.message;
+            const sender = messageData.from || "AI Assistant"; // Default to "AI Assistant" if sender is not provided
+
+            // Only process the message if not sent by current user (avoid duplicates)
+            const isFromCurrentUser = sender === userName;
+            if (!isFromCurrentUser) {
+              // Special case: handle streaming end signal
+              if (streaming && streamingEnd) {
+                console.log("Stream completed for message:", messageId);
+
+                // Mark the stream as complete
+                isStreaming = false;
+
+                // Hide typing indicator
+                showTypingIndicator(false);
+
+                // Find the message element and update its status to completed
+                if (
+                  messageId &&
+                  messageId === currentMessageId &&
+                  currentMessageElement
+                ) {
+                  // Remove streaming cursor and add completion animation
+                  updateStreamingStatus(
+                    currentMessageElement,
+                    false,
+                    false,
+                    true
+                  );
+
+                  // Re-enable input now that we've finished processing
+                  messageInput.disabled = false;
+                  sendButton.disabled = false;
+                  messageInput.focus();
+                }
+
+                return; // We're done processing the streamingEnd signal
+              }
+
+              // Handle normal streaming state
+              if (streaming) {
+                // This is a streamed message - either starting or continuing
+                isStreaming = true;
+
+                // Disable input while receiving streaming message
+                messageInput.disabled = true;
+                sendButton.disabled = true;
+
+                // Check if this is a continuation of an existing message or a new streaming message
+                const isAppending = messageId && messageId === currentMessageId;
+                if (isAppending && messageContent) {
+                  // Update the existing message with new content
+                  addMessage(messageContent, sender, false, messageId, true);
+                } else if (messageContent) {
+                  // Clear any thinking message if it exists
+                  const thinkingMessages =
+                    document.querySelectorAll(".message.thinking");
+                  thinkingMessages.forEach((msg) => msg.remove());
+
+                  // Start a new streaming message
+                  showTypingIndicator(false); // Hide any existing typing indicator
+                  addMessage(messageContent, sender, false, messageId, false);
+                } else if (messageId && !currentMessageElement) {
+                  // This is the first message in a stream but there's no content yet
+                  // Create an initial "thinking" message
+                  showTypingIndicator(false);
+                  const thinkingMessage = "Thinking...";
+                  addMessage(thinkingMessage, sender, false, messageId, false);
+
+                  // Set it as thinking state
+                  if (currentMessageElement) {
+                    updateStreamingStatus(
+                      currentMessageElement,
+                      true,
+                      true,
+                      false
+                    );
+                  }
+                }
+              } else {
+                // This is a complete (non-streamed) message
+                isStreaming = false;
+
+                // Hide typing indicator
+                showTypingIndicator(false);
+
+                // If this has the same messageId as our current message, it's the final part
+                const isAppending = messageId && messageId === currentMessageId;
+
+                // Add or update the message
+                addMessage(
+                  messageContent,
+                  sender,
+                  false,
+                  messageId,
+                  isAppending
+                );
+
+                // Mark the message as completed
+                if (currentMessageElement) {
+                  updateStreamingStatus(
+                    currentMessageElement,
+                    false,
+                    false,
+                    true
+                  );
+                }
+
+                // Re-enable input now that we've finished processing
+                messageInput.disabled = false;
+                sendButton.disabled = false;
+                messageInput.focus();
+
+                // Reset tracking variables after a complete message
+                if (!isAppending) {
+                  currentMessageId = messageId;
+                  currentMessageElement = messageId
+                    ? document.querySelector(`[data-message-id="${messageId}"]`)
+                    : null;
+                }
+              }
+            }
+          });
+
+          await client.start();
+          console.log("Client start initiated successfully");
+        } catch (err) {
+          console.error("Failed to start or connect client:", err);
+          updateStatus(
+            `Connection Failed: ${err.message || "Unknown error"}`,
+            "error"
+          );
+
+          isConnecting = false;
+        }
+      } // Send message handler
+      sendButton.addEventListener("click", async () => {
+        const messageText = messageInput.value.trim();
+
+        if (!messageText || !roomId || !client) return;
+
+        // Disable input while processing
+        messageInput.disabled = true;
+        sendButton.disabled = true;
+
+        // Reset message tracking state before sending a new message
+        currentMessageId = null;
+        currentMessageElement = null;
+        isStreaming = false;
+
+        // Add user message to the chat
+        addMessage(messageText, userName, true);
+
+        // Show typing indicator right after user message
+        showTypingIndicator(true);
+
+        try {
+          // Send message directly to the roomId group using WebPubSub client
+          await client.sendToGroup(
+            roomId,
+            {
+              from: userName,
+              message: messageText,
+              timestamp: new Date().toISOString(),
+              type: "user-message",
+            },
+            "json",
+            {
+              noEcho: true, // This prevents the sender from receiving their own message
+            }
+          );
+
+          console.log(`Message sent to group: ${roomId}`);
+
+          // Clear input field after successful send
+          messageInput.value = "";
+
+          // Add an initial "thinking" message if we don't receive a response immediately
+          // This will be replaced by the actual streaming response
+          setTimeout(() => {
+            // Only add thinking message if we don't already have a response
+            if (!currentMessageElement && !isStreaming) {
+              const thinkingMessageElem = createMessageElement(
+                "Thinking...",
+                "AI Assistant",
+                false,
+                "thinking-" + Date.now()
+              );
+              messagesContainer.appendChild(thinkingMessageElem);
+              updateStreamingStatus(thinkingMessageElem, true, true, false);
+              messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+              // Hide typing indicator since we now have a thinking message
+              showTypingIndicator(false);
+            }
+          }, 500);
+
+          // Note: We keep input disabled until we receive the streaming end message
+          // The input will be re-enabled in the group-message event handler when the response is complete
+        } catch (err) {
+          console.error("Error sending message:", err);
+          showTypingIndicator(false);
+          addMessage(`Error sending message: ${err.message}`, "System", false);
+
+          // Re-enable input field on error
+          messageInput.disabled = false;
+          sendButton.disabled = false;
+          messageInput.focus();
+        }
+      }); // Responsive adjustments removed as sidebar is removed      // Connect automatically when the page loads
+      document.addEventListener("DOMContentLoaded", () => {
+        // Clear any existing messages
+        messagesContainer.innerHTML = "";
+
+        // Connect to WebPubSub service
+        connectToWebPubSub();
+      });
+
+      // If the document is already loaded, connect now
+      if (
+        document.readyState === "complete" ||
+        document.readyState === "interactive"
+      ) {
+        // Clear any existing messages
+        messagesContainer.innerHTML = "";
+
+        // Connect to WebPubSub service
+        connectToWebPubSub();
+      }
+    </script>
+  </body>
+</html>
