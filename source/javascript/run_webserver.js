@@ -3,15 +3,15 @@ import { DefaultAzureCredential } from "@azure/identity";
 import { createAgentService } from "./run_agent.js";
 import express from "express";
 import 'dotenv/config';
+import credential from "./credential.js";
 
 const wpsEndpoint = process.env.WPS_ENDPOINT;
 const aiHub = process.env.WPS_AIHUB;
-const group = process.env.WPS_SAMPLE_GROUP;
-const credential = new DefaultAzureCredential();
-const port = 8080;
+
+const port = 8088;
 const app = express();
 const service = new WebPubSubServiceClient(wpsEndpoint, credential, aiHub);
-app.use(express.static("public"));
+app.use(express.static("."));
 
 const agent = await createAgentService();
 

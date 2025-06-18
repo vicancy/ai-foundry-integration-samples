@@ -9,23 +9,12 @@ import { WebPubSubClient } from "@azure/web-pubsub-client";
 import { WebPubSubServiceClient } from "@azure/web-pubsub";
 
 import "dotenv/config";
-import { DefaultAzureCredential } from "@azure/identity";
-import fs from "fs";
-
-// A custom credential is required for use in Azure Cloud Shell but isn't required on your local machine.
-class VSCodeCredential {
-  async getToken() {
-    const token = fs.readFileSync("/tmp/ai_token", "utf8").trim();
-    return { token, expiresOnTimestamp: 0 };
-  }
-}
-const credential = new DefaultAzureCredential();
+import credential from "./credential.js";
 
 const projectEndpoint = process.env.PROJECT_ENDPOINT;
 const modelDeploymentName = process.env.MODEL_DEPLOYMENT_NAME;
 const wpsEndpoint = process.env.WPS_ENDPOINT;
 const aiHub = process.env.WPS_AIHUB;
-const group = process.env.WPS_SAMPLE_GROUP;
 export class RoomContext {
   messages;
   threadId;

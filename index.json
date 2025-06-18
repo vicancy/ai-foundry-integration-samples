@@ -1,0 +1,76 @@
+{
+  "ai-projects-sdk": {
+    "python": {
+      "default-azure-auth": {
+        "endpoint": [
+          {
+            "name": "INSTRUCTIONS.md",
+            "type": "readme",
+            "path": "/source/python/README.md"
+          },
+          {
+            "name": "run_agent.js",
+            "type": "code",
+            "path": "/source/python/run_agent.js"
+          },
+          {
+            "name": ".env",
+            "type": "env",
+            "path": "/source/.env.template"
+          }
+        ]
+      }
+    },
+    "javascript": {
+      "default-azure-auth": {
+        "endpoint": [
+          {
+            "name": ".env",
+            "type": "env",
+            "path": "/source/.env.template"
+          },
+          {
+            "name": "index.html",
+            "type": "code",
+            "path": "/source/javascript/index.html"
+          },
+          {
+            "name": "run_agent.js",
+            "type": "code",
+            "path": "/source/javascript/run_agent.js"
+          },
+          {
+            "name": "index.js",
+            "type": "code",
+            "path": "/source/javascript/run_webserver.js"
+          },
+          {
+            "name": "INSTRUCTIONS.md",
+            "type": "readme",
+            "path": "/source/javascript/Readme.md"
+          },
+          {
+            "name": "credential.js",
+            "type": "code",
+            "path": "/source/javascript/credential.js"
+          },
+          {
+            "name": "package.json",
+            "type": "dependencies",
+            "path": "/source/javascript/package.json"
+          },
+          {
+            "name": "install.sh",
+            "type": "install",
+            "path": "/source/javascript/install.sh"
+          },
+          {
+            "name": ".gitignore",
+            "type": "code",
+            "path": "/source/javascript/.gitignore"
+          }
+        ]
+      }
+    }
+  }
+}
